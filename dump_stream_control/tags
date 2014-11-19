@@ -1,0 +1,24 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.8	//
+CLIENT_HEAD	client.h	2;"	d
+DB_NAME	client.h	7;"	d
+Init_Sql	interface.c	/^void Init_Sql(MYSQL* mysql)$/;"	f
+MYSQL_SERVER_IP	client.h	4;"	d
+PASSWD	client.h	6;"	d
+USER_NAME	client.h	5;"	d
+init_socket	client.c	/^void init_socket()$/;"	f
+main	client.c	/^int main()$/;"	f
+playtime	client.h	/^	char playtime[20];$/;"	m	struct:task
+playtime	client.h	/^struct playtime$/;"	s
+programId	client.h	/^	char programId[20];$/;"	m	struct:task
+programId	client.h	/^	int programId;$/;"	m	struct:playtime
+ptime	client.h	/^	char ptime[20];$/;"	m	struct:playtime
+queryInfo	interface.c	/^void queryInfo(struct task *send_task, struct playtime *time_list)$/;"	f
+radioId	client.h	/^	int radioId;$/;"	m	struct:task
+socketfd	client.c	/^int socketfd;$/;"	v
+task	client.h	/^struct task$/;"	s
+uri	client.h	/^	char uri[100];$/;"	m	struct:task
