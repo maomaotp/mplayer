@@ -31,12 +31,23 @@
 #include <strings.h>
 #include <assert.h>
 
+#include "config.h"
 
+#if HAVE_WINSOCK2_H
+#include <winsock2.h>
+#endif
+
+#include "mp_msg.h"
+#include "help_mp.h"
+#include "osdep/shmem.h"
+#include "osdep/timer.h"
+#include "network.h"
 #include "stream.h"
 #include "libmpdemux/demuxer.h"
 #include "libavutil/common.h"
 #include "libavutil/intreadwrite.h"
 
+#include "m_option.h"
 #include "m_struct.h"
 
 #include "cache2.h"
@@ -151,16 +162,18 @@ static stream_t* open_stream_plugin(const stream_info_t* sinfo, const char* file
     arg = m_struct_alloc(desc);
     if(sinfo->opts_url) {
       m_option_t url_opt =
-	{ "stream url", arg , CONF_TYPE_CUSTOM_URL, 0, 0 ,0, sinfo->opts };
-		if(m_option_parse(&url_opt,"stream url",filename,arg,0) < 0) {
-			m_struct_free(desc,arg);
-			return NULL;
-		}
+			{ "stream url", arg , CONF_TYPE_CUSTOM_URL, 0, 0 ,0, sinfo->opts };
+		if(m_option_parse(&url_opt,"stream url",filename,arg,M_CONFIG_FILE) < 0) {
+		m_struct_free(desc,arg);
+		return NULL;
+      }
     }
     if(options) {
       int i;
       for(i = 0 ; options[i] != NULL ; i += 2) {
-			if(!m_struct_set(desc,arg,options[i],options[i+1]));
+	if(!m_struct_set(desc,arg,options[i],options[i+1]))
+	  mp_msg(MSGT_OPEN,MSGL_WARN, MSGTR_FailedSetStreamOption,
+		 options[i],options[i+1]);
       }
     }
   }
@@ -170,10 +183,22 @@ static stream_t* open_stream_plugin(const stream_info_t* sinfo, const char* file
   s->flags |= mode;
   *ret = sinfo->open(s,mode,arg,file_format);
   if((*ret) != STREAM_OK) {
+#ifdef CONFIG_NETWORKING
+    if (*ret == STREAM_REDIRECTED && redirected_url) {
+        if (s->streaming_ctrl && s->streaming_ctrl->url
+            && s->streaming_ctrl->url->url)
+          *redirected_url = strdup(s->streaming_ctrl->url->url);
+        else
+          *redirected_url = NULL;
+    }
+    streaming_ctrl_free(s->streaming_ctrl);
+#endif
     free(s->url);
     free(s);
     return NULL;
   }
+  if(s->type <= -2)
+    mp_msg(MSGT_OPEN,MSGL_WARN, MSGTR_StreamNeedType);
   if(s->flags & MP_STREAM_SEEK && !s->seek)
     s->flags &= ~MP_STREAM_SEEK;
   if(s->seek && !(s->flags & MP_STREAM_SEEK))
@@ -181,47 +206,54 @@ static stream_t* open_stream_plugin(const stream_info_t* sinfo, const char* file
 
   s->mode = mode;
 
+  mp_msg(MSGT_OPEN,MSGL_V, "STREAM: [%s] %s\n",sinfo->name,filename);
+  mp_msg(MSGT_OPEN,MSGL_V, "STREAM: Description: %s\n",sinfo->info);
+  mp_msg(MSGT_OPEN,MSGL_V, "STREAM: Author: %s\n", sinfo->author);
+  mp_msg(MSGT_OPEN,MSGL_V, "STREAM: Comment: %s\n", sinfo->comment);
+
   return s;
 }
 
 
 stream_t* open_stream_full(const char* filename,int mode, char** options, int* file_format) {
-  int i,j;
+	int i,j;
 
-  for(i = 0 ; auto_open_streams[i] ; i++) {
-    const stream_info_t *sinfo = auto_open_streams[i];
-    for(j = 0 ; sinfo->protocols[j] ; j++) {
-      int l = strlen(sinfo->protocols[j]);
-      // l == 0 => Don't do protocol matching (ie network and filenames)
-      if((l == 0 && !strstr(filename, "://")) ||
-         ((strncasecmp(sinfo->protocols[j],filename,l) == 0) &&
-		      (strncmp("://",filename+l,3) == 0))) {
-	int r;
-	char *redirected_url = NULL;
-	stream_t* s;
-	*file_format = 0;
-	s = open_stream_plugin(sinfo,filename,mode,options,file_format,&r,
-				&redirected_url);
-	if(s) return s;
-	if(r == -2 && redirected_url) {
-	  s = open_stream_full(redirected_url, mode, options, file_format);
-	  free(redirected_url);
-	  return s;
-	}
-	else if(r != STREAM_UNSUPPORTED) {
-	  return NULL;
-	}
-	break;
-      }
-    }
-  }
-
-  return NULL;
+	for(i = 0 ; auto_open_streams[i] ; i++) {
+		const stream_info_t *sinfo = auto_open_streams[i];
+		for(j = 0 ; sinfo->protocols[j] ; j++) {
+			int l = strlen(sinfo->protocols[j]);
+			// l == 0 => Don't do protocol matching (ie network and filenames)
+			if((l == 0 && !strstr(filename, "://")) ||
+				((strncasecmp(sinfo->protocols[j],filename,l) == 0) &&
+				(strncmp("://",filename+l,3) == 0))) {
+					int r;
+					char *redirected_url = NULL;
+					stream_t* s;
+					*file_format = 0;
+					s = open_stream_plugin(sinfo,filename,mode,options,file_format,&r, &redirected_url);
+					if(s) return s;
+					if(r == -2 && redirected_url) {
+						s = open_stream_full(redirected_url, mode, options, file_format);
+	 					free(redirected_url);
+	 					return s;
+					}
+					else if(r != STREAM_UNSUPPORTED) {
+						mp_msg(MSGT_OPEN,MSGL_ERR, MSGTR_FailedToOpen,filename);
+						return NULL;
+					}
+					break;
+				}
+			}
+		}
+	
+		printf("open:%s", filename);
+		return NULL;
 }
 
 stream_t* open_output_stream(const char* filename, char** options) {
   int file_format; //unused
   if(!filename) {
+    mp_msg(MSGT_OPEN,MSGL_ERR,MSGTR_StreamNULLFilename);
     return NULL;
   }
 
@@ -233,6 +265,8 @@ stream_t* open_output_stream(const char* filename, char** options) {
 void stream_capture_do(stream_t *s)
 {
   if (fwrite(s->buffer, s->buf_len, 1, s->capture_file) < 1) {
+    mp_msg(MSGT_GLOBAL, MSGL_ERR, MSGTR_StreamErrorWritingCapture,
+           strerror(errno));
     fclose(s->capture_file);
     s->capture_file = NULL;
   }
@@ -250,7 +284,7 @@ static int stream_reconnect(stream_t *s)
     do {
         if (retry >= MAX_RECONNECT_RETRIES)
             return 0;
-        //if (retry) usec_sleep(RECONNECT_SLEEP_MS * 1000);
+        if (retry) usec_sleep(RECONNECT_SLEEP_MS * 1000);
         retry++;
         s->eof=1;
         stream_reset(s);
@@ -264,6 +298,14 @@ int stream_read_internal(stream_t *s, void *buf, int len)
   // we will retry even if we already reached EOF previously.
   switch(s->type){
   case STREAMTYPE_STREAM:
+#ifdef CONFIG_NETWORKING
+    if( s->streaming_ctrl!=NULL && s->streaming_ctrl->streaming_read ) {
+      len=s->streaming_ctrl->streaming_read(s->fd, buf, len, s->streaming_ctrl);
+      if (s->streaming_ctrl->status == streaming_stopped_e &&
+          (!s->end_pos || s->pos == s->end_pos))
+        s->eof = 1;
+    } else
+#endif
     if (s->fill_buffer)
       len = s->fill_buffer(s, buf, len);
     else
@@ -345,7 +387,25 @@ if(newpos==0 || newpos!=s->pos){
     // Some streaming protocol allow to seek backward and forward
     // A function call that return -1 can tell that the protocol
     // doesn't support seeking.
+#ifdef CONFIG_NETWORKING
+    if(s->seek) { // new stream seek is much cleaner than streaming_ctrl one
+      if(!s->seek(s,newpos)) {
+      	mp_msg(MSGT_STREAM,MSGL_ERR, MSGTR_StreamSeekFailed);
+      	return 0;
+      }
+      break;
+    }
+
+    if( s->streaming_ctrl!=NULL && s->streaming_ctrl->streaming_seek ) {
+      if( s->streaming_ctrl->streaming_seek( s->fd, newpos, s->streaming_ctrl )<0 ) {
+        mp_msg(MSGT_STREAM,MSGL_INFO,MSGTR_StreamNotSeekable);
+        return 1;
+      }
+      break;
+    }
+#endif
     if(newpos<s->pos){
+      mp_msg(MSGT_STREAM,MSGL_INFO,MSGTR_StreamCannotSeekBackward);
       return 1;
     }
     break;
@@ -355,6 +415,7 @@ if(newpos==0 || newpos!=s->pos){
       return 0;
     // Now seek
     if(!s->seek(s,newpos)) {
+      mp_msg(MSGT_STREAM,MSGL_ERR, MSGTR_StreamSeekFailed);
       return 0;
     }
   }
@@ -369,6 +430,8 @@ int stream_seek_long(stream_t *s, int64_t pos){
   int res;
   int64_t newpos=0;
 
+//  if( mp_msg_test(MSGT_STREAM,MSGL_DBG3) ) printf("seek_long to 0x%X\n",(unsigned int)pos);
+
   s->buf_pos=s->buf_len=0;
 
   if(s->mode == STREAM_WRITE) {
@@ -382,6 +445,10 @@ int stream_seek_long(stream_t *s, int64_t pos){
   else
       newpos = pos&(~((int64_t)STREAM_BUFFER_SIZE-1));
 
+if( mp_msg_test(MSGT_STREAM,MSGL_DBG3) ){
+  mp_msg(MSGT_STREAM,MSGL_DBG3, "s->pos=%"PRIX64"  newpos=%"PRIX64"  new_bufpos=%"PRIX64"  buflen=%X  \n",
+    (int64_t)s->pos,(int64_t)newpos,(int64_t)pos,s->buf_len);
+}
   pos-=newpos;
 
   res = stream_seek_internal(s, newpos);
@@ -402,6 +469,7 @@ while(stream_fill_buffer(s) > 0 && pos >= 0) {
 
 //  if(pos==s->buf_len) printf("XXX Seek to last byte of file -> EOF\n");
 
+  mp_msg(MSGT_STREAM,MSGL_V,"stream_seek: WARNING! Can't seek to 0x%"PRIX64" !\n",(int64_t)(pos+newpos));
   return 0;
 }
 
@@ -449,6 +517,7 @@ stream_t* new_stream(int fd,int type){
   {
     WSADATA wsdata;
     int temp = WSAStartup(0x0202, &wsdata); // there might be a better place for this (-> later)
+    mp_msg(MSGT_STREAM,MSGL_V,"WINSOCK2 init: %i\n", temp);
   }
 #endif
 
@@ -478,8 +547,14 @@ void free_stream(stream_t *s){
     /* on unix we define closesocket to close
        on windows however we have to distinguish between
        network socket and file */
-    close(s->fd);
+    if(s->url && strstr(s->url,"://"))
+      closesocket(s->fd);
+    else close(s->fd);
   }
+#if HAVE_WINSOCK2_H
+  mp_msg(MSGT_STREAM,MSGL_V,"WINSOCK2 uninit\n");
+  WSACleanup(); // there might be a better place for this (-> later)
+#endif
   // Disabled atm, i don't like that. s->priv can be anything after all
   // streams should destroy their priv on close
   //free(s->priv);
@@ -499,7 +574,7 @@ void stream_set_interrupt_callback(int (*cb)(int)) {
 
 int stream_check_interrupt(int time) {
     if(!stream_check_interrupt_cb) {
-        //usec_sleep(time * 1000);
+        usec_sleep(time * 1000);
         return 0;
     }
     return stream_check_interrupt_cb(time);
@@ -508,7 +583,6 @@ int stream_check_interrupt(int time) {
 /**
  * Helper function to read 16 bits little-endian and advance pointer
  */
-
 static uint16_t get_le16_inc(const uint8_t **buf)
 {
   uint16_t v = AV_RL16(*buf);
@@ -640,22 +714,26 @@ int parse_chapter_range(const m_option_t *conf, const char *range) {
   if(*range && isdigit(*range)) {
     dvd_chapter = strtol(range, (char **) &s, 10);
     if(range == s) {
+      mp_msg(MSGT_OPEN, MSGL_ERR, MSGTR_DVDinvalidChapterRange, range);
       return M_OPT_INVALID;
     }
   }
   if(*s == 0)
     return 0;
   else if(*s != '-') {
+    mp_msg(MSGT_OPEN, MSGL_ERR, MSGTR_DVDinvalidChapterRange, range);
     return M_OPT_INVALID;
   }
   ++s;
   if(*s == 0)
       return 0;
   if(! isdigit(*s)) {
+    mp_msg(MSGT_OPEN, MSGL_ERR, MSGTR_DVDinvalidChapterRange, range);
     return M_OPT_INVALID;
   }
   dvd_last_chapter = strtol(s, &t, 10);
   if (s == t || *t) {
+    mp_msg(MSGT_OPEN, MSGL_ERR, MSGTR_DVDinvalidChapterRange, range);
     return M_OPT_INVALID;
   }
   return 0;

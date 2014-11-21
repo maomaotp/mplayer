@@ -53,12 +53,10 @@
 #include "mpcommon.h"
 
 double sub_last_pts = -303;
-char *current_module;
 
 #ifdef CONFIG_ASS
 ASS_Track* ass_track = 0; // current track to render
 #endif
-
 
 sub_data* subdata = NULL;
 subtitle* vo_sub_last = NULL;
@@ -127,7 +125,6 @@ void init_vo_spudec(struct stream *stream, struct sh_video *sh_video, struct sh_
 
     if (spudec_ifo) {
         unsigned int palette[16];
-        current_module = "spudec_init_vobsub";
         if (vobsub_parse_ifo(NULL, spudec_ifo, palette, &width, &height, 1, -1, NULL) >= 0)
             vo_spudec = spudec_new_scaled(palette, width, height, NULL, 0);
     }
@@ -137,23 +134,20 @@ void init_vo_spudec(struct stream *stream, struct sh_video *sh_video, struct sh_
 
 #ifdef CONFIG_DVDREAD
     if (vo_spudec == NULL && stream->type == STREAMTYPE_DVD) {
-        current_module = "spudec_init_dvdread";
-       // vo_spudec      = spudec_new_scaled(((dvd_priv_t *)(stream->priv))->cur_pgc->palette,
-       //                                    width, height,
-       //                                    NULL, 0);
+        vo_spudec      = spudec_new_scaled(((dvd_priv_t *)(stream->priv))->cur_pgc->palette,
+                                           width, height,
+                                           NULL, 0);
     }
 #endif
 
 #ifdef CONFIG_DVDNAV
     if (vo_spudec == NULL && stream->type == STREAMTYPE_DVDNAV) {
-        //unsigned int *palette = mp_dvdnav_get_spu_clut(stream);
-        current_module = "spudec_init_dvdnav";
-        //vo_spudec      = spudec_new_scaled(palette, width, height, NULL, 0);
+        unsigned int *palette = mp_dvdnav_get_spu_clut(stream);
+        vo_spudec      = spudec_new_scaled(palette, width, height, NULL, 0);
     }
 #endif
 
     if (vo_spudec == NULL) {
-        current_module = "spudec_init_normal";
         vo_spudec      = spudec_new_scaled(NULL, width, height,
                                            sh_sub ? sh_sub->extradata : NULL,
                                            sh_sub ? sh_sub->extradata_len : 0);
@@ -173,7 +167,7 @@ static int is_av_sub(int type)
 {
     return type == 'b' || type == 'p' || type == 'x';
 }
-/*
+
 void update_subtitles(sh_video_t *sh_video, double refpts, demux_stream_t *d_dvdsub, int reset)
 {
     double curpts = refpts - sub_delay;
@@ -199,7 +193,6 @@ void update_subtitles(sh_video_t *sh_video, double refpts, demux_stream_t *d_dvd
     // find sub
     if (subdata) {
         if (sub_fps==0) sub_fps = sh_video ? sh_video->fps : 25;
-        current_module = "find_sub";
         if (refpts > sub_last_pts || refpts < sub_last_pts-1.0) {
             find_sub(subdata, curpts *
                      (subdata->sub_uses_time ? 100. : sub_fps));
@@ -213,7 +206,7 @@ void update_subtitles(sh_video_t *sh_video, double refpts, demux_stream_t *d_dvd
     if (vo_config_count &&
         (vobsub_id >= 0 || type == 'v')) {
         int timestamp;
-        current_module = "spudec";
+        /* Get a sub packet from the DVD or a vobsub */
         while(1) {
             // Vobsub
             len = 0;
@@ -351,7 +344,7 @@ void update_subtitles(sh_video_t *sh_video, double refpts, demux_stream_t *d_dvd
                     for (i=0; i < skip_commas && *p != '\0'; p++)
                         if (*p == ',')
                             i++;
-                    if (*p == '\0') 
+                    if (*p == '\0')  /* Broken line? */
                         continue;
                     len -= p - packet;
                     packet = p;
@@ -372,9 +365,7 @@ void update_subtitles(sh_video_t *sh_video, double refpts, demux_stream_t *d_dvd
             vo_osd_changed(OSDTYPE_SPU);
     }
 
-    current_module=NULL;
 }
-*/
 
 void update_teletext(sh_video_t *sh_video, demuxer_t *demuxer, int reset)
 {
@@ -564,14 +555,17 @@ static void sanitize_os(void)
  */
 void common_preinit(int *argc_ptr, char **argv_ptr[])
 {
+#ifdef __MINGW32__
+    get_win32_cmdline(argc_ptr, argv_ptr);
+#else
     (void)argc_ptr;
     (void)argv_ptr;
+#endif
+    sanitize_os();
+    InitTimer();
+    srand(GetTimerMS());
 
-    //sanitize_os();
-    //InitTimer();
-    //srand(GetTimerMS());
-
-    //mp_msg_init();
+    mp_msg_init();
 }
 
 /**

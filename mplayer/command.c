@@ -78,13 +78,6 @@
 
 #define IS_STREAMTYPE(t) (mpctx->stream && mpctx->stream->type == STREAMTYPE_##t)
 
-int osd_level = 1;
-float audio_delay;
-int frame_dropping;
-double force_fps;
-float rel_seek_secs;
-int abs_seek_pos;
-
 static void rescale_input_coordinates(int ix, int iy, double *dx, double *dy)
 {
     //remove the borders, if any, and rescale to the range [0,1],[0,1]
@@ -262,7 +255,6 @@ static int mp_property_loop(m_option_t *prop, int action, void *arg,
 }
 
 /// Playback speed (RW)
-/*
 static int mp_property_playback_speed(m_option_t *prop, int action,
                                       void *arg, MPContext *mpctx)
 {
@@ -284,7 +276,6 @@ static int mp_property_playback_speed(m_option_t *prop, int action,
     }
     return m_property_float_range(prop, action, arg, &playback_speed);
 }
-*/
 
 /// filename with path (RO)
 static int mp_property_path(m_option_t *prop, int action, void *arg,
@@ -435,7 +426,6 @@ static int mp_property_percent_pos(m_option_t *prop, int action,
 }
 
 /// Current position in seconds (RW)
-/*
 static int mp_property_time_pos(m_option_t *prop, int action,
                                 void *arg, MPContext *mpctx) {
     if (!(mpctx->sh_video || (mpctx->sh_audio && mpctx->audio_out)))
@@ -460,7 +450,6 @@ static int mp_property_time_pos(m_option_t *prop, int action,
                                                 mpctx->d_audio,
                                                 mpctx->audio_out));
 }
-*/
 
 /// Current chapter (RW)
 static int mp_property_chapter(m_option_t *prop, int action, void *arg,
@@ -520,15 +509,15 @@ static int mp_property_chapter(m_option_t *prop, int action, void *arg,
             abs_seek_pos = SEEK_ABSOLUTE;
             rel_seek_secs = next_pts;
         }
-        //if (chapter_name)
-            //set_osd_msg(OSD_MSG_TEXT, 1, osd_duration,
-             //           MSGTR_OSDChapter, chapter + 1, chapter_name);
+        if (chapter_name)
+            set_osd_msg(OSD_MSG_TEXT, 1, osd_duration,
+                        MSGTR_OSDChapter, chapter + 1, chapter_name);
     }
     else if (step_all > 0)
         rel_seek_secs = 1000000000.;
     else
-      //  set_osd_msg(OSD_MSG_TEXT, 1, osd_duration,
-       //             MSGTR_OSDChapter, 0, MSGTR_Unknown);
+        set_osd_msg(OSD_MSG_TEXT, 1, osd_duration,
+                    MSGTR_OSDChapter, 0, MSGTR_Unknown);
     free(chapter_name);
     return M_PROPERTY_OK;
 }
@@ -612,8 +601,8 @@ static int mp_property_angle(m_option_t *prop, int action, void *arg,
         return M_PROPERTY_NOT_IMPLEMENTED;
     }
     angle = demuxer_set_angle(mpctx->demuxer, angle);
-    //set_osd_msg(OSD_MSG_TEXT, 1, osd_duration,
-     //                   MSGTR_OSDAngle, angle, angles);
+    set_osd_msg(OSD_MSG_TEXT, 1, osd_duration,
+                        MSGTR_OSDAngle, angle, angles);
     free(angle_name);
     return M_PROPERTY_OK;
 }
@@ -903,7 +892,6 @@ static int mp_property_balance(m_option_t *prop, int action, void *arg,
     return M_PROPERTY_NOT_IMPLEMENTED;
 }
 
-/*
 /// Selected audio id (RW)
 static int mp_property_audio(m_option_t *prop, int action, void *arg,
                              MPContext *mpctx)
@@ -965,7 +953,6 @@ static int mp_property_audio(m_option_t *prop, int action, void *arg,
     }
 
 }
-*/
 
 /// Selected video id (RW)
 static int mp_property_video(m_option_t *prop, int action, void *arg,
@@ -1007,8 +994,8 @@ static int mp_property_video(m_option_t *prop, int action, void *arg,
         if (tmp == -2
             || (tmp > -1 && mpctx->demuxer->video->id != current_id
                 && current_id != -2)) {
-            //uninit_player(INITIALIZED_VCODEC |
-              //            (fixed_vo && tmp != -2 ? 0 : INITIALIZED_VO));
+            uninit_player(INITIALIZED_VCODEC |
+                          (fixed_vo && tmp != -2 ? 0 : INITIALIZED_VO));
             video_id = tmp;
         }
         if (tmp > -1 && mpctx->demuxer->video->id != current_id) {
@@ -1018,7 +1005,7 @@ static int mp_property_video(m_option_t *prop, int action, void *arg,
                 video_id = sh2->vid;
                 sh2->ds = mpctx->demuxer->video;
                 mpctx->sh_video = sh2;
-               // reinit_video_chain();
+                reinit_video_chain();
             }
         }
         mp_msg(MSGT_IDENTIFY, MSGL_INFO, "ID_VIDEO_TRACK=%d\n", video_id);
@@ -1125,8 +1112,8 @@ static int mp_property_deinterlace(m_option_t *prop, int action,
         if (result != CONTROL_OK) {
             deinterlace = deinterlace_old;
         }
-        //set_osd_msg(OSD_MSG_SPEED, 1, osd_duration, MSGTR_OSDDeinterlace,
-         //   deinterlace ? MSGTR_Enabled : MSGTR_Disabled);
+        set_osd_msg(OSD_MSG_SPEED, 1, osd_duration, MSGTR_OSDDeinterlace,
+            deinterlace ? MSGTR_Enabled : MSGTR_Disabled);
         return (result == CONTROL_OK) ? M_PROPERTY_OK : M_PROPERTY_UNAVAILABLE;
     }
     return M_PROPERTY_NOT_IMPLEMENTED;
@@ -1149,7 +1136,7 @@ static int mp_property_capture(m_option_t *prop, int action,
     ret = m_property_flag(prop, action, arg, &capturing);
     if (ret == M_PROPERTY_OK && capturing != !!mpctx->stream->capture_file) {
         if (capturing) {
-            mpctx->stream->capture_file = fopen(stream_dump_name, "ab");
+            //mpctx->stream->capture_file = fopen(stream_dump_name, "ab");
             if (!mpctx->stream->capture_file) {
                 mp_msg(MSGT_GLOBAL, MSGL_ERR,
                        "Error opening capture file: %s\n", strerror(errno));
@@ -1163,11 +1150,11 @@ static int mp_property_capture(m_option_t *prop, int action,
 
     switch (ret) {
     case M_PROPERTY_ERROR:
-        //set_osd_msg(OSD_MSG_SPEED, 1, osd_duration, MSGTR_OSDCapturingFailure);
+        set_osd_msg(OSD_MSG_SPEED, 1, osd_duration, MSGTR_OSDCapturingFailure);
         break;
     case M_PROPERTY_OK:
-        //set_osd_msg(OSD_MSG_SPEED, 1, osd_duration, MSGTR_OSDCapturing,
-         //           mpctx->stream->capture_file ? MSGTR_Enabled : MSGTR_Disabled);
+        set_osd_msg(OSD_MSG_SPEED, 1, osd_duration, MSGTR_OSDCapturing,
+                    mpctx->stream->capture_file ? MSGTR_Enabled : MSGTR_Disabled);
         break;
     default:
         break;
@@ -1629,7 +1616,7 @@ static int mp_property_sub(m_option_t *prop, int action, void *arg,
         pts = mpctx->sh_audio->pts;
     if (mpctx->sh_video)
         pts = mpctx->sh_video->pts;
-    //update_subtitles(mpctx->sh_video, pts, d_sub, 1);
+    update_subtitles(mpctx->sh_video, pts, d_sub, 1);
 
     return M_PROPERTY_OK;
 }
@@ -2098,8 +2085,8 @@ static const m_option_t mp_properties[] = {
      M_OPT_RANGE, 0, 3, NULL },
     { "loop", mp_property_loop, CONF_TYPE_INT,
      M_OPT_MIN, -1, 0, NULL },
-    //{ "speed", mp_property_playback_speed, CONF_TYPE_FLOAT,
-    // M_OPT_RANGE, 0.01, 100.0, NULL },
+    { "speed", mp_property_playback_speed, CONF_TYPE_FLOAT,
+     M_OPT_RANGE, 0.01, 100.0, NULL },
     { "filename", mp_property_filename, CONF_TYPE_STRING,
      0, 0, 0, NULL },
     { "path", mp_property_path, CONF_TYPE_STRING,
@@ -2120,8 +2107,8 @@ static const m_option_t mp_properties[] = {
      M_OPT_MIN, 0, 0, NULL },
     { "percent_pos", mp_property_percent_pos, CONF_TYPE_INT,
      M_OPT_RANGE, 0, 100, NULL },
-    //{ "time_pos", mp_property_time_pos, CONF_TYPE_TIME,
-    // M_OPT_MIN, 0, 0, NULL },
+    { "time_pos", mp_property_time_pos, CONF_TYPE_TIME,
+     M_OPT_MIN, 0, 0, NULL },
     { "chapter", mp_property_chapter, CONF_TYPE_INT,
      M_OPT_MIN, 0, 0, NULL },
     { "titles", mp_property_titles, CONF_TYPE_INT,
@@ -2154,8 +2141,8 @@ static const m_option_t mp_properties[] = {
      0, 0, 0, NULL },
     { "channels", mp_property_channels, CONF_TYPE_INT,
      0, 0, 0, NULL },
-    //{ "switch_audio", mp_property_audio, CONF_TYPE_INT,
-    // CONF_RANGE, -2, 65535, NULL },
+    { "switch_audio", mp_property_audio, CONF_TYPE_INT,
+     CONF_RANGE, -2, 65535, NULL },
     { "balance", mp_property_balance, CONF_TYPE_FLOAT,
      M_OPT_RANGE, -1, 1, NULL },
 
@@ -2425,9 +2412,9 @@ static int set_property_command(MPContext *mpctx, mp_cmd_t *cmd)
     if (set_prop_cmd[i].osd_msg) {
         char *val = mp_property_print(pname, mpctx);
         if (val) {
-            //set_osd_msg(set_prop_cmd[i].osd_id >=
-            //            0 ? set_prop_cmd[i].osd_id : OSD_MSG_PROPERTY + i,
-            //            1, osd_duration, set_prop_cmd[i].osd_msg, val);
+            set_osd_msg(set_prop_cmd[i].osd_id >=
+                        0 ? set_prop_cmd[i].osd_id : OSD_MSG_PROPERTY + i,
+                        1, osd_duration, set_prop_cmd[i].osd_msg, val);
             free(val);
         }
     }
@@ -2599,7 +2586,7 @@ static void overlay_remove(int id)
         img  = next;
     }
 }
-/*
+
 int run_command(MPContext *mpctx, mp_cmd_t *cmd)
 {
     sh_audio_t * const sh_audio = mpctx->sh_audio;
@@ -2614,13 +2601,13 @@ int run_command(MPContext *mpctx, mp_cmd_t *cmd)
                     mpctx->osd_show_percentage = sh_video->fps;
                 v = cmd->args[0].v.f;
                 abs = (cmd->nargs > 1) ? cmd->args[1].v.i : 0;
-                if (abs == 2) { 
+                if (abs == 2) { /* Absolute seek to a specific timestamp in seconds */
                     abs_seek_pos = SEEK_ABSOLUTE;
                     if (sh_video)
                         mpctx->osd_function =
                             (v > sh_video->pts) ? OSD_FFW : OSD_REW;
                     rel_seek_secs = v;
-                } else if (abs) {       
+                } else if (abs) {       /* Absolute seek by percentage */
                     abs_seek_pos = SEEK_ABSOLUTE | SEEK_FACTOR;
                     if (sh_video)
                         mpctx->osd_function = OSD_FFW;  // Direction isn't set correctly
@@ -2874,6 +2861,8 @@ int run_command(MPContext *mpctx, mp_cmd_t *cmd)
                     osd_level = (osd_level + 1) % (max + 1);
                 else
                     osd_level = v > max ? max : v;
+                /* Show OSD state when disabled, but not when an explicit
+                   argument is given to the OSD command, i.e. in slave mode. */
                 if (v == -1 && osd_level <= 1)
                     set_osd_msg(OSD_MSG_OSD_STATUS, 0, osd_duration,
                                 MSGTR_OSDosd,
@@ -2895,6 +2884,7 @@ int run_command(MPContext *mpctx, mp_cmd_t *cmd)
                 char *txt = m_properties_expand_string(mp_properties,
                                                        cmd->args[0].v.s,
                                                        mpctx);
+                /* if no argument supplied take default osd_duration, else <arg> ms. */
                 if (txt) {
                     set_osd_msg(OSD_MSG_TEXT, cmd->args[2].v.i,
                                 (cmd->args[1].v.i <
@@ -2915,7 +2905,7 @@ int run_command(MPContext *mpctx, mp_cmd_t *cmd)
                     // Go back to the starting point.
                     while (play_tree_iter_up_step
                            (mpctx->playtree_iter, 0, 1) != PLAY_TREE_ITER_END)
-                        ;
+                        /* NOP */ ;
                     play_tree_free_list(mpctx->playtree->child, 1);
                     play_tree_set_child(mpctx->playtree, e);
                     pt_iter_goto_head(mpctx->playtree_iter);
@@ -2938,7 +2928,7 @@ int run_command(MPContext *mpctx, mp_cmd_t *cmd)
                         while (play_tree_iter_up_step
                                (mpctx->playtree_iter, 0, 1)
                                != PLAY_TREE_ITER_END)
-                            ;
+                            /* NOP */ ;
                         play_tree_free_list(mpctx->playtree->child, 1);
                         play_tree_set_child(mpctx->playtree, e);
                         pt_iter_goto_head(mpctx->playtree_iter);
@@ -2959,7 +2949,7 @@ int run_command(MPContext *mpctx, mp_cmd_t *cmd)
             // Go back to the starting point.
             while (play_tree_iter_up_step
                    (mpctx->playtree_iter, 0, 1) != PLAY_TREE_ITER_END)
-                ;
+                /* NOP */ ;
             mpctx->eof = PT_STOP;
             brk_cmd = 1;
             break;
@@ -3031,7 +3021,7 @@ int run_command(MPContext *mpctx, mp_cmd_t *cmd)
                            pvr_get_current_channelname (mpctx->stream),
                            pvr_get_current_stationname (mpctx->stream));
             }
-#endif 
+#endif /* CONFIG_PVR */
             break;
 
         case MP_CMD_TV_STEP_FREQ:
@@ -3045,7 +3035,7 @@ int run_command(MPContext *mpctx, mp_cmd_t *cmd)
                            pvr_get_current_channelname (mpctx->stream),
                            pvr_get_current_frequency (mpctx->stream));
             }
-#endif 
+#endif /* CONFIG_PVR */
             break;
 
         case MP_CMD_TV_SET_NORM:
@@ -3079,7 +3069,7 @@ int run_command(MPContext *mpctx, mp_cmd_t *cmd)
                                pvr_get_current_channelname (mpctx->stream),
                                pvr_get_current_stationname (mpctx->stream));
                 }
-#endif
+#endif /* CONFIG_PVR */
             }
 #ifdef CONFIG_DVBIN
             if (IS_STREAMTYPE(DVB)) {
@@ -3096,7 +3086,7 @@ int run_command(MPContext *mpctx, mp_cmd_t *cmd)
                     if (dvb_step_channel(mpctx->stream, dir))
                         mpctx->eof = mpctx->dvbin_reopen = 1;
             }
-#endif 
+#endif /* CONFIG_DVBIN */
             break;
 
         case MP_CMD_TV_SET_CHANNEL:
@@ -3116,7 +3106,7 @@ int run_command(MPContext *mpctx, mp_cmd_t *cmd)
                            pvr_get_current_channelname (mpctx->stream),
                            pvr_get_current_stationname (mpctx->stream));
             }
-#endif
+#endif /* CONFIG_PVR */
             break;
 
 #ifdef CONFIG_DVBIN
@@ -3129,7 +3119,7 @@ int run_command(MPContext *mpctx, mp_cmd_t *cmd)
                         mpctx->eof = mpctx->dvbin_reopen = 1;
             }
             break;
-#endif 
+#endif /* CONFIG_DVBIN */
 
         case MP_CMD_TV_LAST_CHANNEL:
             if (mpctx->file_format == DEMUXER_TYPE_TV) {
@@ -3147,7 +3137,7 @@ int run_command(MPContext *mpctx, mp_cmd_t *cmd)
                            pvr_get_current_channelname (mpctx->stream),
                            pvr_get_current_stationname (mpctx->stream));
             }
-#endif 
+#endif /* CONFIG_PVR */
             break;
 
         case MP_CMD_TV_STEP_NORM:
@@ -3159,7 +3149,7 @@ int run_command(MPContext *mpctx, mp_cmd_t *cmd)
             if (mpctx->file_format == DEMUXER_TYPE_TV)
                 tv_step_chanlist((tvi_handle_t *) (mpctx->demuxer->priv));
             break;
-#endif 
+#endif /* CONFIG_TV */
         case MP_CMD_TV_TELETEXT_ADD_DEC:
             if (mpctx->demuxer->teletext)
                 teletext_control(mpctx->demuxer->teletext,TV_VBI_CONTROL_ADD_DEC,
@@ -3454,6 +3444,7 @@ int run_command(MPContext *mpctx, mp_cmd_t *cmd)
             af_uninit(mpctx->mixer.afilter);
             af_init(mpctx->mixer.afilter);
         }
+        /* Fallthrough to add filters like for af_add */
     case MP_CMD_AF_ADD:
     case MP_CMD_AF_DEL:
         if (!sh_audio)
@@ -3525,4 +3516,3 @@ int run_command(MPContext *mpctx, mp_cmd_t *cmd)
     }
     return brk_cmd;
 }
-*/

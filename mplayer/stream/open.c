@@ -24,11 +24,17 @@
 #include <fcntl.h>
 #include <string.h>
 
+#include "config.h"
+#include "mp_msg.h"
+#include "help_mp.h"
+
 #ifdef __FreeBSD__
 #include <sys/cdrio.h>
 #endif
 
+#include "m_option.h"
 #include "stream.h"
+#include "libmpdemux/demuxer.h"
 
 
 /// We keep these 2 for the gui atm, but they will be removed.
@@ -40,17 +46,18 @@ char *bluray_device=NULL;
 
 // Open a new stream  (stdin/file/vcd/url)
 
-stream_t* open_stream(const char* filename,char** options, int* file_format){
-  int dummy = 0;
-  if (!file_format) file_format = &dummy;
-  // Check if playlist or unknown
-  if (*file_format != (2<<16) ){
-    *file_format=0;
-  }
-
-	if(!filename) {
-	   return NULL;
+stream_t* open_stream(const char* filename,char** options, int* file_format)
+{
+	int dummy = 0;
+	if (!file_format) file_format = &dummy;
+	// Check if playlist or unknown
+	if (*file_format != (2<<16)){
+		*file_format=0;
 	}
 
-  return open_stream_full(filename,0,options,file_format);
+	if(!filename) {
+		return NULL;
+	}
+
+	return open_stream_full(filename,0,options,file_format);
 }

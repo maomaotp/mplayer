@@ -1,0 +1,22 @@
+K 10
+svn:ignore
+V 146
+*.d
+*.ho
+config.*
+ffmpeg
+gmplayer
+help_mp.h
+mencoder
+mplayer
+version.h
+codecs.conf.h
+codec-cfg
+codec-cfg-test
+codecs2html
+cpuinfo
+tags
+TAGS
+*.exe
+
+END

@@ -62,7 +62,7 @@ int main()
 		send_task.programId = time_list[i].programId;
 		strcpy( send_task.playtime, time_list[i].ptime );
 
-		sleep(10);
+		//sleep(10);
 	    send(socketfd, (char *)&send_task, sizeof(struct task), 0);
 		printf("%d  %d  %s  %s\n", send_task.radioId, send_task.programId, send_task.playtime, send_task.uri);
 		//kill(pid, SIGINT);
