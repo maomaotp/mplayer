@@ -34,6 +34,32 @@ void init_socket()
     }
 }
 
+int play_time(char *timestr)
+{
+	char tmp[20];
+	char h[5];
+	char m[5];
+	char s[5];
+	strcpy(tmp, timestr);
+	strcpy(h,strtok(tmp, ":"));	
+	strcpy(m,strtok(NULL, ":"));
+	strcpy(s,strtok(NULL, ":"));
+
+	return atoi(h)*60+atoi(m);
+}
+
+int inver_time(char *start, char *end)
+{
+	if (!start || !end){
+		return 0;
+	}
+
+	int a = play_time(start);
+	int b = play_time(end);
+	
+	return b-a;
+}
+
 int main()
 {
 	init_socket();
@@ -62,11 +88,21 @@ int main()
 		send_task.programId = time_list[i].programId;
 		strcpy( send_task.playtime, time_list[i].ptime );
 
-		//sleep(10);
 	    send(socketfd, (char *)&send_task, sizeof(struct task), 0);
 		printf("%d  %d  %s  %s\n", send_task.radioId, send_task.programId, send_task.playtime, send_task.uri);
-		//kill(pid, SIGINT);
 
+		int inver = inver_time(time_list[i].ptime, time_list[i+1].ptime);
+
+		printf("inver_time = %d\n", inver);
+		if(inver <= 0){
+			sleep( 60 * 60 * 60 );
+			kill(pid, SIGINT);
+			break;
+		}
+		else{
+			sleep( inver * 60 );
+			kill(pid, SIGUSR1);
+		}
 		i++;
 	}
 

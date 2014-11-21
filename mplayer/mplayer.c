@@ -140,6 +140,7 @@
 #endif
 
 char *stream_dump_name;
+int redump_request = 0;
 
 int slave_mode;
 int player_idle_mode;
@@ -732,6 +733,7 @@ void exit_player_with_rc(enum exit_reason how, int rc)
 
 void exit_player(enum exit_reason how)
 {
+	printf("exit:dump\n");
     exit_player_with_rc(how, 1);
 }
 
@@ -2616,39 +2618,16 @@ char *filename;
 
 static void exit_sighandler(int x)
 {
-//    static int sig_count;
-//    ++sig_count;
-//    if (initialized_flags == 0 && sig_count > 1)
-//        exit(1);
-//    if (sig_count == 5) {
-//        /* We're crashing bad and can't uninit cleanly :(
-//         * by popular request, we make one last (dirty)
-//         * effort to restore the user's
-//         * terminal. */
-//        //getch2_disable();
-//        exit(1);
-//    }
-//    if (sig_count == 6)
-//        exit(1);
-//    if (sig_count > 6) {
-//        // can't stop :(
-//#ifndef __MINGW32__
-//        kill(getpid(), SIGKILL);
-//#endif
-//    }
-//    if (sig_count <= 1)
-//        switch (x) {
-//        case SIGINT:
-//        case SIGPIPE:
-//        case SIGQUIT:
-//        case SIGTERM:
-//        case SIGKILL:
-			  async_quit_request = 1;
-//            return; // killed from keyboard (^C) or killed [-9]
-//        }
-//    //getch2_disable();
-//    exit(1);
+	async_quit_request = 1;
 }
+
+
+static void redump_sighandler(int x)
+{
+	redump_request = 1;
+	async_quit_request = 1;
+}
+
 /*-----------------end------------------*/
 
 int socketfd, clientfd;
@@ -2692,8 +2671,9 @@ void socket_init()
 
 int main(int argc, char *argv[])
 {
-    signal(SIGINT, exit_sighandler); // Interrupt from keyboard
-    signal(SIGUSR1, exit_sighandler); // Interrupt from keyboard
+    signal(SIGINT, redump_sighandler); // Interrupt from keyboard
+   
+    //signal(SIGINT, exit_sighandler); // Interrupt from keyboard
 
 	socket_init();
 
@@ -2704,63 +2684,56 @@ int main(int argc, char *argv[])
 	send( clientfd, str, sizeof(str), 0 );
 
 	//接收下载
-	recv(clientfd, (char *)&programInfo, sizeof(programInfo), 0);
 	stream_dump_name = (char *)malloc(200);
-	snprintf(stream_dump_name, 200, "%d_%d.asf", programInfo.radioId, programInfo.programId);
-
 	filename = (char *)malloc(100);
-	strcpy(filename, programInfo.uri);
+	while(!redump_request){
+		signal(SIGUSR1, exit_sighandler); // Interrupt from client
 
-	printf("%s -----  %s\n", filename, stream_dump_name);
-
-	//start dump stream
-    mpctx->stream  = open_stream(filename, 0, &mpctx->file_format);
-    if (!mpctx->stream) { // error...
-        mpctx->eof = libmpdemux_was_interrupted(PT_NEXT_ENTRY);
-    }
-    //initialized_flags |= INITIALIZED_STREAM;
-
-    mpctx->stream->start_pos += seek_to_byte;
-
-	stream_dump_type = 5;
-    if (stream_dump_type == 5) {
-        unsigned char buf[4096];
-        int len;
-        FILE *f;
-        stream_reset(mpctx->stream);
-        stream_seek(mpctx->stream, mpctx->stream->start_pos);
-        f = fopen(stream_dump_name, "wb");
-        if (!f) {
-            exit_player(EXIT_ERROR);
-        }
-       // if (dvd_chapter > 1) {
-       //     int chapter = dvd_chapter - 1;
-       //     stream_control(mpctx->stream, STREAM_CTRL_SEEK_TO_CHAPTER, &chapter);
-       // }
-       // stream_dump_progress_start();
-        while (!mpctx->stream->eof && !async_quit_request) {
-            double pts;
-            if (stream_control(mpctx->stream, STREAM_CTRL_GET_CURRENT_TIME, &pts) != STREAM_OK)
-                pts = MP_NOPTS_VALUE;
-            if (is_at_end(mpctx, &end_at, pts))
-                break;
-            len = stream_read(mpctx->stream, buf, 4096);
-            if (len > 0) {
-                if (fwrite(buf, len, 1, f) != 1) {
-                    exit_player(EXIT_ERROR);
-                }
-            }
+		printf("wait the client message:\n");
+		recv(clientfd, (char *)&programInfo, sizeof(programInfo), 0);
+		async_quit_request=0;
+	
+		snprintf(stream_dump_name, 200, "%d_%d.asf", programInfo.radioId, programInfo.programId);
+		snprintf(filename, 100, "%s", programInfo.uri);
+	
+		printf("%s ----->>  %s\n", filename, stream_dump_name);
+	
+		//start dump stream
+	    mpctx->stream  = open_stream(filename, 0, &mpctx->file_format);
+	    if (!mpctx->stream) { // error...
+	        mpctx->eof = libmpdemux_was_interrupted(PT_NEXT_ENTRY);
+	    }
+	    //initialized_flags |= INITIALIZED_STREAM;
+	
+	    mpctx->stream->start_pos += seek_to_byte;
+	
+	    unsigned char buf[4096];
+	    int len;
+	    FILE *f;
+	    stream_reset(mpctx->stream);
+	    stream_seek(mpctx->stream, mpctx->stream->start_pos);
+	    f = fopen(stream_dump_name, "wb");
+	    if (!f) {
+	        exit_player(EXIT_ERROR);
+	    }
+	    while (!mpctx->stream->eof && !async_quit_request) {
+	        double pts;
+	        if (stream_control(mpctx->stream, STREAM_CTRL_GET_CURRENT_TIME, &pts) != STREAM_OK)
+	            pts = MP_NOPTS_VALUE;
+	        if (is_at_end(mpctx, &end_at, pts))
+	            break;
+	        len = stream_read(mpctx->stream, buf, 4096);
+	        if (len > 0) {
+	            if (fwrite(buf, len, 1, f) != 1) {
+	                exit_player(EXIT_ERROR);
+	            }
+	        }
 			printf("stream_dump_count:%d\n", stream_dump_count+=len);
-           // if (dvd_last_chapter > 0) {
-           //     int chapter = -1;
-           //     if (stream_control(mpctx->stream, STREAM_CTRL_GET_CURRENT_CHAPTER,
-           //                        &chapter) == STREAM_OK && chapter + 1 > dvd_last_chapter)
-           //         break;
-           // }
-        }
-        if (fclose(f)) {
-            exit_player(EXIT_ERROR);
-        }
-        exit_player_with_rc(EXIT_EOF, 0);
-    }
+	    }
+		printf("close:%s\n", stream_dump_name);
+	    if (fclose(f)) {
+	        exit_player(EXIT_ERROR);
+	    }
+	}
+	exit_player_with_rc(EXIT_EOF, 0);
 }
