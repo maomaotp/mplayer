@@ -11,14 +11,20 @@ MYSQL_SERVER_IP	client.h	4;"	d
 PASSWD	client.h	6;"	d
 USER_NAME	client.h	5;"	d
 init_socket	client.c	/^void init_socket()$/;"	f
+inver_time	client.c	/^int inver_time(char *start, char *end)$/;"	f
 main	client.c	/^int main()$/;"	f
+main	test.c	/^int main()$/;"	f
+play_time	client.c	/^int play_time(char *timestr)$/;"	f
 playtime	client.h	/^	char playtime[20];$/;"	m	struct:task
-playtime	client.h	/^struct playtime$/;"	s
-programId	client.h	/^	int programId;$/;"	m	struct:playtime
+proTime	client.h	/^struct proTime$/;"	s
 programId	client.h	/^	int programId;$/;"	m	struct:task
-ptime	client.h	/^	char ptime[20];$/;"	m	struct:playtime
-queryInfo	interface.c	/^void queryInfo(struct task *send_task, struct playtime *time_list)$/;"	f
+programId	client.h	/^	int programId;$/;"	m	struct:timeList
+ptime	client.h	/^	char ptime[20];$/;"	m	struct:timeList
+queryInfo	interface.c	/^int queryInfo(struct task *send_task, struct proTime *pro_time)$/;"	f
 radioId	client.h	/^	int radioId;$/;"	m	struct:task
+row	client.h	/^	int row;$/;"	m	struct:proTime
 socketfd	client.c	/^int socketfd;$/;"	v
 task	client.h	/^struct task$/;"	s
+timeList	client.h	/^struct timeList $/;"	s
+time_list	client.h	/^	struct timeList *time_list;$/;"	m	struct:proTime	typeref:struct:proTime::timeList
 uri	client.h	/^	char uri[100];$/;"	m	struct:task

@@ -66,44 +66,51 @@ int main()
 	char mplayer_pid[20];
 	struct task send_task;
 	pid_t pid;
+	int inver;
 
 	//获取流下载的pid
 	recv(socketfd, mplayer_pid, sizeof(mplayer_pid), 0);
 	pid = atoi(mplayer_pid);
 	printf("pid==%d\n", pid);
 
-	struct playtime *time_list;
-	time_list = (struct playtime *)calloc(200, sizeof(struct playtime));
-	if(!time_list){
-		printf("calloc error\n");
-		return -1;
-	}
+	struct proTime pro_time;
+	//time_list = (struct playtime *)calloc(200, sizeof(struct playtime));
 
 	send_task.radioId = 19;
 
-	queryInfo(&send_task, time_list);
+	queryInfo(&send_task, &pro_time);
 
-	int i=0;
-	while(time_list[i].programId != 0){
-		send_task.programId = time_list[i].programId;
-		strcpy( send_task.playtime, time_list[i].ptime );
+	int i;
+	for(i=0; i<pro_time.row; i++){
+		send_task.programId = pro_time.time_list[i].programId;
+		strcpy( send_task.playtime, pro_time.time_list[i].ptime );
+#ifdef DEBUG
+		printf("pro_time.time_list[%d].ptime = %s\n", i, pro_time.time_list[i].ptime);
+#endif
 
 	    send(socketfd, (char *)&send_task, sizeof(struct task), 0);
 		printf("%d  %d  %s  %s\n", send_task.radioId, send_task.programId, send_task.playtime, send_task.uri);
 
-		int inver = inver_time(time_list[i].ptime, time_list[i+1].ptime);
+		if(i == pro_time.row-1){
+#ifdef DEBUG
+			printf("the last programId\n");
+#endif
+			inver = 70;
+		}
+		else {
+			inver = inver_time(pro_time.time_list[i].ptime, pro_time.time_list[i+1].ptime);
+		}
+
+		if(inver <= 0){
+#ifdef debug
+			printf("the inver is error\n");
+#endif
+			inver = 70;
+		}
 
 		printf("inver_time = %d\n", inver);
-		if(inver <= 0){
-			sleep( 60 * 60 * 60 );
-			kill(pid, SIGINT);
-			break;
-		}
-		else{
-			sleep( inver * 60 );
-			kill(pid, SIGUSR1);
-		}
-		i++;
+		sleep(inver);
+		kill(pid, SIGUSR1);
 	}
 
     return 0;

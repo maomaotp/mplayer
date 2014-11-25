@@ -2693,7 +2693,7 @@ int main(int argc, char *argv[])
 		recv(clientfd, (char *)&programInfo, sizeof(programInfo), 0);
 		async_quit_request=0;
 	
-		snprintf(stream_dump_name, 200, "%d_%d.asf", programInfo.radioId, programInfo.programId);
+		snprintf(stream_dump_name, 200, "../log/%d_%d.asf", programInfo.radioId, programInfo.programId);
 		snprintf(filename, 100, "%s", programInfo.uri);
 	
 		printf("%s ----->>  %s\n", filename, stream_dump_name);
