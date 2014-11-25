@@ -76,7 +76,7 @@ int main()
 	struct proTime pro_time;
 	//time_list = (struct playtime *)calloc(200, sizeof(struct playtime));
 
-	send_task.radioId = 19;
+	send_task.radioId = 40;
 
 	queryInfo(&send_task, &pro_time);
 
@@ -96,6 +96,9 @@ int main()
 			printf("the last programId\n");
 #endif
 			inver = 70;
+			sleep( inver*60 );
+			kill(pid, SIGINT);
+			break;
 		}
 		else {
 			inver = inver_time(pro_time.time_list[i].ptime, pro_time.time_list[i+1].ptime);
@@ -109,7 +112,7 @@ int main()
 		}
 
 		printf("inver_time = %d\n", inver);
-		sleep(inver);
+		sleep( inver*60 );
 		kill(pid, SIGUSR1);
 	}
 
